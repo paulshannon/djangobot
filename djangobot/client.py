@@ -74,13 +74,18 @@ class SlackClientProtocol(WebSocketClientProtocol):
             user_id = message.pop('user')
             user = self.slack.user_from_id(user_id) 
             message[u'user'] = user['name']
+            message[u'user_id'] = user_id
         except (KeyError, IndexError, ValueError):
             pass
         # translate channel
         try:
             channel_id = message.pop('channel')
-            channel = self.slack.channel_from_id(channel_id)
-            message[u'channel'] = channel['name']
+            if channel_id.startswith('D'):  # Direct message
+                message[u'channel'] = 'Direct Message'
+            else:
+                channel = self.slack.channel_from_id(channel_id)
+                message[u'channel'] = channel['name']
+            message[u'channel_id'] = channel_id
         except (KeyError, IndexError, ValueError):
             pass
         return message

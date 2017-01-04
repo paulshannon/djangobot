@@ -8,6 +8,8 @@ from twisted.internet.ssl import ClientContextFactory
 
 from .slack import SlackAPI
 
+send_types = set(['message'])
+
 
 def pack(message):
     """
@@ -72,11 +74,12 @@ class SlackClientProtocol(WebSocketClientProtocol):
         # translate user
         try:
             user_id = message.pop('user')
-            user = self.slack.user_from_id(user_id) 
+            user = self.slack.user_from_id(user_id)
             message[u'user'] = user['name']
             message[u'user_id'] = user_id
         except (KeyError, IndexError, ValueError):
             pass
+
         # translate channel
         try:
             channel_id = message.pop('channel')
@@ -88,17 +91,22 @@ class SlackClientProtocol(WebSocketClientProtocol):
             message[u'channel_id'] = channel_id
         except (KeyError, IndexError, ValueError):
             pass
-        return message
+        else:
+            try:
+                channel = self.slack.channel_from_id(channel_id)
+                message[u'channel'] = channel['name']
+            except ValueError:
+                if channel_id.startswith('D'):  # Direct Message
+                    message[u'channel'] = 'Direct'
+                    message[u'channel_id'] = channel_id
 
-    def sendHello(self):
-        self.sendMessage(self.make_message('<yawn /> Why hello there.', 'general'))
+        return message
 
     def onOpen(self):
         """
         Store this protocol instance in the factory and wave hello.
         """
         self.factory.protocols.append(self)
-        self.sendHello()
 
     def onMessage(self, payload, isBinary):
         """
@@ -109,9 +117,14 @@ class SlackClientProtocol(WebSocketClientProtocol):
         """
         msg = self.translate(unpack(payload))
         if 'type' in msg:
-            channel_name = 'slack.{}'.format(msg['type'])
-            print('Sending on {}'.format(channel_name))
-            channels.Channel(channel_name).send({'text': pack(msg)})
+            if msg['type'] in send_types:
+                channel_name = 'slack.{}'.format(msg['type'])
+                print('Sending on {}'.format(channel_name))
+                channels.Channel(channel_name).send({'text': pack(msg)})
+            else:
+                channel_name = 'slack.{}'.format(msg['type'])
+                print('Ignoring {}'.format(channel_name))
+
 
     def sendSlack(self, message):
         """

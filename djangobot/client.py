@@ -94,11 +94,12 @@ class SlackClientProtocol(WebSocketClientProtocol):
         else:
             try:
                 channel = self.slack.channel_from_id(channel_id)
-                message[u'channel'] = channel['name']
-            except ValueError:
+            except Exception:
                 if channel_id.startswith('D'):  # Direct Message
                     message[u'channel'] = 'Direct'
                     message[u'channel_id'] = channel_id
+            else:
+                message[u'channel'] = channel['name']
 
         return message
 
